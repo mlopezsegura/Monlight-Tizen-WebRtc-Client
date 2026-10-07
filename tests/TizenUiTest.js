@@ -8,6 +8,7 @@ global.window = global;
 require("../tizen/ui.js");
 require("../tizen/preferences.js");
 require("../tizen/wake-on-lan.js");
+require("../tizen/gateway-auth.js");
 require("../tizen/gateway-store.js");
 require("../tizen/gateway-ipv4.js");
 require("../tizen/application-artwork.js");
@@ -44,6 +45,7 @@ const html = readSource("index.html");
 const config = readSource("config.xml");
 const uiSource = readSource("ui.js");
 const appSource = readSource("app.js");
+const cssSource = readSource("ui.css");
 const uiCss = readSource("ui.css");
 assert.ok(html.includes('id="settings-screen"'), "settings view is missing");
 assert.ok(html.includes("Moonlight WebRTC Client"), "the Client title is missing from the UI");
@@ -160,8 +162,22 @@ assert.ok(appSource.includes("function probeSavedGateways()"),
 assert.ok(appSource.includes("function startGatewayValidationTimeout(host, gatewayId)")
   && appSource.includes("within 10 seconds"),
   "manual Gateway validation must stop after a bounded ten second timeout");
-assert.ok(appSource.includes('setGatewayRuntimeState(activeGateway.id, "Online")'),
-  "a newly saved Gateway must receive its persistent Online runtime state");
+assert.ok(appSource.includes("setGatewayRuntimeState(activeGateway.id, reachableGatewayState(sunshineReady))"),
+  "a newly saved Gateway must receive its persistent runtime state");
+assert.ok(appSource.includes("setGatewayRuntimeState(gateway.id, reachableGatewayState(message.sunshineAvailable))"),
+  "the Gateway watch must tell a Gateway without Sunshine from one that can stream");
+assert.ok(appSource.includes('message.type === "sunshine-availability"')
+  && appSource.includes("scheduleRetry();"),
+  "the Gateway watch must follow pushed Sunshine changes and reconnect when it drops");
+assert.ok(appSource.includes("mode.codecs.filter(tvCanReceiveVideoCodec)")
+  && appSource.includes('=== "video/av1"'),
+  "AV1 must be offered only when the TV's WebRTC stack can receive it");
+assert.ok(appSource.includes("function codecSupportsHdr(mode, codec)")
+  && !appSource.includes('codecSelect.value !== "hevc"'),
+  "HDR must follow the codecs each mode reports as HDR-capable, not HEVC alone");
+assert.ok(uiSource.includes('"is-sunshine-unavailable"')
+  && cssSource.includes(".status-dot.is-sunshine-unavailable"),
+  "a Gateway whose Sunshine is unavailable must get its own status color");
 assert.ok(appSource.includes("function openGatewayContextMenu()")
   && appSource.includes("function openGatewayEditor(mode, gatewayId)"),
   "saved Gateways require the edit/remove context actions");
@@ -266,6 +282,19 @@ assert.ok(html.includes('id="gateway-wake-button"') && html.includes('type="butt
   "the Gateway menu must offer Wake PC, hidden until the Gateway's address is known");
 assert.ok(packagingScript.includes("build-wake-on-lan.ps1") && packagingScript.includes("'wasm'"),
   "the widget must package the Wake-on-LAN WebAssembly module next to its loader");
+assert.ok(html.includes('id="gateway-pair-dialog"') && html.includes('data-pin-index="3"'),
+  "pairing with a Gateway requires the four-digit PIN dialog");
+assert.ok(html.indexOf('src="gateway-auth.js"') >= 0
+  && html.indexOf('src="gateway-auth.js"') < html.indexOf('src="gateway-store.js"'),
+  "the Gateway store validates pairing credentials, so gateway-auth.js must load first");
+assert.ok(appSource.includes("const GATEWAY_PROTOCOL_VERSION = 2;"),
+  "the client must speak the protocol version that requires TV authentication");
+assert.ok(appSource.includes('type: "authenticate"') && appSource.includes('type: "pair-client"'),
+  "the client must authenticate with saved credentials and pair when it has none");
+assert.ok(!/addEventListener\("open"[\s\S]{0,400}requestApplications\(\)/.test(appSource),
+  "applications must be requested only after the Gateway accepts this TV");
+assert.ok(config.includes("http://tizen.org/privilege/tv.inputdevice") && appSource.includes("registerKeyBatch"),
+  "the remote's number keys must be registered to type a pairing PIN");
 assert.ok(appSource.includes("learnGatewayMacAddress(gateway.id, message);"),
   "Gateway probes must remember the address needed to wake each saved PC");
 assert.ok(appSource.includes('gatewayRuntimeStates.get(gateway.id) === "Offline" && wakeOnLan.isSupported()'),

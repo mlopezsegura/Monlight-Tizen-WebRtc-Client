@@ -49,6 +49,7 @@ int main()
         snapshot.runningApplicationName = "Desktop";
         snapshot.sessionActive = true;
         snapshot.connectedTvClients = 1;
+        snapshot.pairedTvClients = 2;
         const auto response = nlohmann::json::parse(
             gateway::serviceipc::makeStatusResponse(snapshot));
         require(response.at("version") == gateway::serviceipc::ProtocolVersion
@@ -59,7 +60,8 @@ int main()
                     && response.at("sunshineName") == "Sunshine-PC"
                     && response.at("runningApplicationId") == "7"
                     && response.at("runningApplicationName") == "Desktop"
-                    && response.at("connectedTvClients") == 1,
+                    && response.at("connectedTvClients") == 1
+                    && response.at("pairedTvClients") == 2,
                 "IPC status response did not preserve supported snapshot fields");
 
         const auto minimal = nlohmann::json::parse(

@@ -24,6 +24,9 @@ const char* commandName(CommandType command)
     case CommandType::Pair: return "pair";
     case CommandType::PairStatus: return "pair-status";
     case CommandType::Unpair: return "unpair";
+    case CommandType::PairTv: return "pair-tv";
+    case CommandType::PairTvStatus: return "pair-tv-status";
+    case CommandType::UnpairTvs: return "unpair-tvs";
     }
     throw std::invalid_argument("Unsupported management IPC command");
 }
@@ -53,6 +56,9 @@ Command parseCommand(std::string_view payload)
     if (type == "pair" && value.size() == 2) return {CommandType::Pair, {}};
     if (type == "pair-status" && value.size() == 2) return {CommandType::PairStatus, {}};
     if (type == "unpair" && value.size() == 2) return {CommandType::Unpair, {}};
+    if (type == "pair-tv" && value.size() == 2) return {CommandType::PairTv, {}};
+    if (type == "pair-tv-status" && value.size() == 2) return {CommandType::PairTvStatus, {}};
+    if (type == "unpair-tvs" && value.size() == 2) return {CommandType::UnpairTvs, {}};
     throw std::invalid_argument("Unsupported management IPC command");
 }
 

@@ -7,11 +7,15 @@
   // gone on the next launch. That is the whole story behind a Gateway that was added, worked
   // for the rest of the session, and had vanished by the morning.
   //
-  // tizen.preference writes through to the application's own data directory synchronously,
-  // so mirroring every value there gives it a second home that survives the kill. Neither
-  // backend is trusted on its own: a read prefers localStorage because it is the fast path,
-  // falls back to the mirror when localStorage comes back empty, and repairs localStorage
-  // from the mirror so the rest of the run behaves normally.
+  // Every value is therefore also written to backends that reach the disk before setItem
+  // returns: tizen.preference and a file in the widget's private directory, flushed with
+  // sync(). Either may be missing on a given firmware, which is why there are two of them.
+  //
+  // Reads prefer those durable backends and only fall back to localStorage. Preferring
+  // localStorage would be wrong in the other direction: after a kill it does not come back
+  // empty, it comes back with the value from an earlier session, which looks valid and
+  // silently replaces everything written since. A backend that misses the value, or holds
+  // a different one, is repaired from the one that answered.
 
   function localBackend(storage) {
     const target = storage || global.localStorage;
@@ -53,6 +57,60 @@
     };
   }
 
+  function fileBackend(filesystem) {
+    const target = filesystem
+      || (global.tizen && global.tizen.filesystem)
+      || null;
+    if (!target || typeof target.openFile !== "function"
+      || typeof target.pathExists !== "function") {
+      return null;
+    }
+    function pathFor(key) {
+      return "wgt-private/" + String(key).replace(/[^A-Za-z0-9._-]/g, "_") + ".json";
+    }
+    return {
+      name: "tizen.filesystem",
+      read: function (key) {
+        const path = pathFor(key);
+        if (!target.pathExists(path)) {
+          return null;
+        }
+        const handle = target.openFile(path, "r");
+        let contents;
+        try {
+          contents = handle.readString();
+        } finally {
+          handle.close();
+        }
+        // The value is wrapped so that a file cut short by a kill mid-write fails to parse
+        // and is treated as missing, instead of handing a truncated value to the caller.
+        try {
+          const envelope = JSON.parse(contents);
+          return envelope && typeof envelope.value === "string" ? envelope.value : null;
+        } catch (error) {
+          return null;
+        }
+      },
+      write: function (key, value) {
+        const handle = target.openFile(pathFor(key), "w");
+        try {
+          handle.writeString(JSON.stringify({ value: String(value) }));
+          if (typeof handle.sync === "function") {
+            handle.sync();
+          }
+        } finally {
+          handle.close();
+        }
+      },
+      remove: function (key) {
+        const path = pathFor(key);
+        if (target.pathExists(path) && typeof target.deleteFile === "function") {
+          target.deleteFile(path);
+        }
+      },
+    };
+  }
+
   function DurableStorage(backends, log) {
     this.backends = backends;
     this.log = typeof log === "function" ? log : function () {};
@@ -66,27 +124,40 @@
 
   DurableStorage.prototype.getItem = function (key) {
     let value = null;
-    let recoveredFrom = null;
+    let source = null;
+    const stale = [];
     for (let index = 0; index < this.backends.length; index += 1) {
       const backend = this.backends[index];
+      let candidate;
       try {
-        value = backend.read(key);
+        candidate = backend.read(key);
       } catch (error) {
         this.log("Storage read failed on " + backend.name + ": " + String(error));
         continue;
       }
-      if (value !== null) {
-        if (index > 0) {
-          recoveredFrom = backend.name;
+      if (source === null) {
+        if (candidate !== null) {
+          value = candidate;
+          source = backend;
+        } else {
+          stale.push(backend);
         }
-        break;
+      } else if (candidate !== value) {
+        stale.push(backend);
       }
     }
-    if (recoveredFrom !== null) {
-      // Only reached when the preferred backend lost the value, which is exactly the
-      // failure this module exists for. Say so: it is the evidence that it happened.
-      this.log("Recovered " + key + " from " + recoveredFrom);
-      this.setItem(key, value);
+    if (source !== null && stale.length > 0) {
+      // Only reached when a backend lost or never got the newest value, which is exactly
+      // the failure this module exists for. Say so: it is the evidence that it happened.
+      this.log("Recovered " + key + " from " + source.name + " into "
+        + stale.map(function (backend) { return backend.name; }).join(", "));
+      stale.forEach(function (backend) {
+        try {
+          backend.write(key, value);
+        } catch (error) {
+          this.log("Storage write failed on " + backend.name + ": " + String(error));
+        }
+      }, this);
     }
     return value;
   };
@@ -124,12 +195,19 @@
   global.DurableStorage = {
     create: function (options) {
       const settings = options || {};
+      // Ordered by how much a read trusts them: the backends that write through to disk
+      // first, localStorage last.
       const backends = [
-        localBackend(settings.storage),
         preferenceBackend(settings.preference),
+        fileBackend(settings.filesystem),
+        localBackend(settings.storage),
       ].filter(Boolean);
       return new DurableStorage(backends, settings.log);
     },
-    testing: { localBackend: localBackend, preferenceBackend: preferenceBackend },
+    testing: {
+      localBackend: localBackend,
+      preferenceBackend: preferenceBackend,
+      fileBackend: fileBackend,
+    },
   };
 }(window));

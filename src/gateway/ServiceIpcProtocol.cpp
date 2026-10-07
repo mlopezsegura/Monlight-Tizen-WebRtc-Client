@@ -59,6 +59,9 @@ std::string makeStatusResponse(const StatusSnapshot& snapshot)
     if (snapshot.connectedTvClients) {
         response["connectedTvClients"] = *snapshot.connectedTvClients;
     }
+    if (snapshot.pairedTvClients) {
+        response["pairedTvClients"] = *snapshot.pairedTvClients;
+    }
     return response.dump();
 }
 

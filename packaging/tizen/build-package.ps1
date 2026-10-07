@@ -43,6 +43,7 @@ try {
         'frame-interpolation.js',
         'gamepad-input.js',
         'gamepad-ui-navigation.js',
+        'gateway-auth.js',
         'gateway-ipv4.js',
         'gateway-store.js',
         'index.html',

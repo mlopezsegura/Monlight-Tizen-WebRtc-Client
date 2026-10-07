@@ -278,10 +278,20 @@ void MoonlightSession::start()
             log("Host display HDR state cannot be queried from the Windows service session; "
                 "continuing without changing the host display and validating the received HDR stream");
         }
-        if (options_.settings.hdr
+        const bool av1 = options_.settings.codec == VideoCodec::AV1;
+        if (options_.settings.hdr && !av1
             && (detected.serverInfo.serverCodecModeSupport & SCM_HEVC_MAIN10) == 0) {
             throw std::runtime_error(
                 "HDR session rejected: Sunshine does not advertise HEVC Main10 support");
+        }
+        if (av1 && (detected.serverInfo.serverCodecModeSupport & SCM_AV1_MAIN8) == 0) {
+            throw std::runtime_error(
+                "AV1 session rejected: Sunshine does not advertise an AV1 encoder on this PC");
+        }
+        if (av1 && options_.settings.hdr
+            && (detected.serverInfo.serverCodecModeSupport & SCM_AV1_MAIN10) == 0) {
+            throw std::runtime_error(
+                "HDR session rejected: Sunshine does not advertise AV1 Main10 support");
         }
 
         auto httpClient = configuredClient(identity_, detected);
@@ -338,7 +348,8 @@ void MoonlightSession::start()
             [this](const std::string& error) {
                 log("Stopping invalid HDR stream: " + error);
                 if (terminationHandler_) {
-                    terminationHandler_();
+                    terminationHandler_("The PC did not send an HDR picture. Turn on HDR "
+                                        "on the PC display or turn HDR off in Settings.");
                 }
             });
 
@@ -433,7 +444,8 @@ void MoonlightSession::connectionTerminatedCallback(int errorCode)
     if (auto* session = activeSession_.load(std::memory_order_acquire)) {
         session->log("Moonlight connection terminated: " + std::to_string(errorCode));
         if (session->terminationHandler_) {
-            session->terminationHandler_();
+            session->terminationHandler_("Sunshine ended the stream (error "
+                                         + std::to_string(errorCode) + ").");
         }
     }
 }

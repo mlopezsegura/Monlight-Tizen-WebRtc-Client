@@ -24,7 +24,13 @@ int main()
         require(parseCommand(R"({"version":1,"type":"pair"})").type == CommandType::Pair, "pair was not parsed");
         require(parseCommand(R"({"version":1,"type":"pair-status"})").type == CommandType::PairStatus, "pair-status was not parsed");
         require(parseCommand(R"({"version":1,"type":"unpair"})").type == CommandType::Unpair, "unpair was not parsed");
-        for (const char* invalid : {R"({"version":2,"type":"test"})", R"({"version":1,"type":"pair","pin":"1234"})", R"({"version":1,"type":"set-host"})", R"({"version":1,"type":"test","x":1})",
+        require(parseCommand(R"({"version":1,"type":"pair-tv"})").type == CommandType::PairTv, "pair-tv was not parsed");
+        require(parseCommand(R"({"version":1,"type":"pair-tv-status"})").type == CommandType::PairTvStatus, "pair-tv-status was not parsed");
+        require(parseCommand(R"({"version":1,"type":"unpair-tvs"})").type == CommandType::UnpairTvs, "unpair-tvs was not parsed");
+        require(makeCommand({CommandType::PairTv, {}}) == R"({"type":"pair-tv","version":1})", "pair-tv did not serialize");
+        const auto tvPin = parseResult(makeResult(CommandType::PairTv, {true, "tv-pairing-open", "Enter the PIN on the TV", "0042"}), CommandType::PairTv);
+        require(tvPin.pin == "0042", "TV pairing PIN was not preserved");
+        for (const char* invalid : {R"({"version":2,"type":"test"})", R"({"version":1,"type":"pair","pin":"1234"})", R"({"version":1,"type":"pair-tv","pin":"1234"})", R"({"version":1,"type":"set-host"})", R"({"version":1,"type":"test","x":1})",
                 R"({"version":1,"type":"test","host":5})", R"({"version":1,"type":"test","host":"a","x":1})"}) {
             bool rejected = false; try { (void)parseCommand(invalid); } catch (...) { rejected = true; } require(rejected, "invalid command was accepted");
         }

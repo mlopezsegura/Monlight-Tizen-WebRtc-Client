@@ -193,6 +193,22 @@ int main()
             require(sopsHevc != launchQueryHevc.end() && sopsHevc->second == "0",
                     "Sunshine sops=0 changed for an HEVC/high-resolution session");
         }
+        auto settingsAv1 = gateway::defaultStreamSettings(1920, 1080, gateway::VideoCodec::AV1);
+        const auto av1Profile = gateway::moonlight::moonlightVideoProfile(settingsAv1);
+        require(av1Profile.videoFormat == VIDEO_FORMAT_AV1_MAIN8
+                    && av1Profile.colorSpace == COLORSPACE_REC_709
+                    && !av1Profile.hdr && av1Profile.bitDepth == 8,
+                "AV1 profile mapping is incorrect");
+        settingsAv1.hdr = true;
+        const auto av1HdrProfile = gateway::moonlight::moonlightVideoProfile(settingsAv1);
+        require(av1HdrProfile.videoFormat == VIDEO_FORMAT_AV1_MAIN10
+                    && av1HdrProfile.colorSpace == COLORSPACE_REC_2020
+                    && av1HdrProfile.hdr && av1HdrProfile.bitDepth == 10,
+                "AV1 HDR profile mapping is incorrect");
+        auto settingsAv1Hdr720 = gateway::defaultStreamSettings(1280, 720, gateway::VideoCodec::AV1);
+        settingsAv1Hdr720.hdr = true;
+        require(gateway::validateStreamSettings(settingsAv1Hdr720).has_value(),
+                "AV1 HDR at 720p must be rejected like HEVC HDR");
         const auto sdrProfile = gateway::moonlight::moonlightVideoProfile(settingsHevc1080);
         const auto hdrProfile = gateway::moonlight::moonlightVideoProfile(settingsHdr1080);
         require(sdrProfile.videoFormat == VIDEO_FORMAT_H265

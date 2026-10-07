@@ -82,6 +82,10 @@ The current beta streams at a fixed **60 FPS** and supports several resolution a
 | H.264 | ✅ | ✅ | — | — |
 | HEVC Main | ✅ | ✅ | 🧪 | ✅ |
 | HEVC Main10 HDR | — | ✅ | 🧪 | ✅ |
+| AV1 Main 8-bit ¹ | ✅ | ✅ | 🧪 | ✅ |
+| AV1 Main 10-bit HDR ¹ | — | ✅ | 🧪 | ✅ |
+
+¹ **AV1 is offered only when the PC's GPU can encode it and the TV can decode it over WebRTC.**
 
 🧪 **1440p is currently considered experimental.**
 
@@ -93,7 +97,7 @@ Resolution, codec, HDR mode and bitrate are selectable directly from the TV.
 
 ## 🌈 HDR
 
-Moonlight WebRTC supports **HEVC Main10 HDR** streaming without tone mapping or video transcoding in the Gateway.
+Moonlight WebRTC supports **HEVC Main10 and AV1 Main 10-bit HDR** streaming without tone mapping or video transcoding in the Gateway.
 
 The HDR path preserves the Main10 stream and Rec.2020 signaling through to the Samsung TV.
 
@@ -130,7 +134,7 @@ Moonlight WebRTC instead uses this path:
 ```text
 Sunshine
    ↓
-H.264 / HEVC encoded video
+H.264 / HEVC / AV1 encoded video
    ↓
 Moonlight WebRTC Gateway
 packetize / forward
@@ -230,6 +234,7 @@ From the tray you can:
 - test the Sunshine connection;
 - pair with Sunshine;
 - unpair;
+- pair a TV with the Gateway, or forget every paired TV;
 - inspect Gateway status;
 - inspect network and session information.
 
@@ -383,6 +388,8 @@ Gateway discovery is not available yet, so select **Add Gateway** and enter the 
 
 The TV and PC must be reachable on the same local network.
 
+The first time, the TV asks for a PIN. On the PC, open Moonlight WebRTC from the system tray, choose **TVs → Pair TV**, and enter the four-digit PIN it shows on the TV within two minutes. Each TV pairs once; the Gateway refuses TVs that have not paired, so other devices on your network cannot use it or interrupt your stream.
+
 Once connected, your Sunshine application library should appear. Select an application and start streaming.
 
 ---
@@ -455,7 +462,7 @@ The Gateway stores its identity and Sunshine pairing information in:
 %PROGRAMDATA%\MoonlightWebRTC
 ```
 
-This directory contains sensitive client identity material, including the Gateway certificate/private key and Sunshine pairing state.
+This directory contains sensitive client identity material, including the Gateway certificate/private key, Sunshine pairing state, and the credentials of paired TVs (`tv-clients.json`).
 
 **Do not share or publish this directory.**
 
@@ -493,6 +500,12 @@ Check that:
 The Windows installer creates the required local-subnet firewall rule automatically.
 
 **Do not disable Windows Firewall as a troubleshooting step.**
+
+## The TV keeps asking for a PIN
+
+The Gateway no longer recognizes the TV, for example after **Forget all TVs** or a reset of the Gateway data. Pair it again from **TVs → Pair TV** in the tray. A PIN is valid for two minutes and three attempts; start again on the PC if it expires.
+
+If the TV reports that the Gateway is out of date, update the Windows Gateway: the TV app and the Gateway must both be recent enough to support TV pairing.
 
 ## The PC does not wake up
 

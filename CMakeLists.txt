@@ -89,6 +89,14 @@ target_compile_features(service_ipc_server PUBLIC cxx_std_20)
 target_include_directories(service_ipc_server PUBLIC src)
 target_link_libraries(service_ipc_server PUBLIC service_ipc_protocol advapi32)
 
+add_library(tv_client_auth
+    src/gateway/TvClientAuth.cpp
+)
+
+target_compile_features(tv_client_auth PUBLIC cxx_std_20)
+target_include_directories(tv_client_auth PUBLIC src)
+target_link_libraries(tv_client_auth PUBLIC nlohmann_json::nlohmann_json OpenSSL::Crypto)
+
 add_library(wake_on_lan_address
     src/platform/WakeOnLanAddress.cpp
 )
@@ -109,6 +117,7 @@ target_link_libraries(moonlight_video_profile PUBLIC
 )
 
 add_library(moonlight_media_bridge
+    src/media/Av1SequenceHeaderParser.cpp
     src/media/HevcSpsParser.cpp
     src/moonlight/MoonlightMediaBridge.cpp
 )
@@ -172,6 +181,7 @@ target_link_libraries(moonlight_webrtc PRIVATE
     gateway_protocol
     management_ipc_client
     service_ipc_server
+    tv_client_auth
     h264_annex_b_reader
     moonlight_control
     moonlight_input_bridge
@@ -332,4 +342,10 @@ if(BUILD_TESTING)
     )
     target_link_libraries(wake_on_lan_address_test PRIVATE wake_on_lan_address)
     add_test(NAME wake_on_lan_address_test COMMAND wake_on_lan_address_test)
+
+    add_executable(tv_client_auth_test
+        tests/TvClientAuthTest.cpp
+    )
+    target_link_libraries(tv_client_auth_test PRIVATE tv_client_auth)
+    add_test(NAME tv_client_auth_test COMMAND tv_client_auth_test)
 endif()

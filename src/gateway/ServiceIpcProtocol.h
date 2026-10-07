@@ -21,6 +21,7 @@ struct StatusSnapshot {
     std::optional<std::string> runningApplicationName;
     std::optional<bool> sessionActive;
     std::optional<std::uint32_t> connectedTvClients;
+    std::optional<std::uint32_t> pairedTvClients;
 };
 
 enum class RequestType {

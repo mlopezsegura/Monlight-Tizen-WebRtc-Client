@@ -63,7 +63,8 @@ private:
 class MoonlightSession {
 public:
     using Logger = std::function<void(const std::string&)>;
-    using TerminationHandler = std::function<void()>;
+    // Called when the stream ends without being asked to, with the reason for the TV.
+    using TerminationHandler = std::function<void(const std::string&)>;
     using RumbleHandler = std::function<void(std::uint16_t, std::uint16_t, std::uint16_t)>;
 
     MoonlightSession(MediaSender& sender,
