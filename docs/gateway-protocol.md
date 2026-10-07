@@ -180,7 +180,9 @@ combined with HDR in that mode; a TV that does not find it assumes HEVC only.
 
 AV1 is listed only when Sunshine advertises an AV1 Main 8-bit encoder (`ServerCodecModeSupport`
 bit `SCM_AV1_MAIN8`), which needs a GPU that can encode it. The Gateway learns this when it
-reaches Sunshine, so `capabilities` is sent again when Sunshine becomes available. The TV
+reaches Sunshine, so `capabilities` is sent again when Sunshine becomes available, and
+whenever Sunshine's advertised encoders change while it stays available (for example after
+Sunshine restarts and its hardware encoder passes the startup probe it failed before). The TV
 further hides AV1 when `RTCRtpReceiver.getCapabilities("video")` does not list `video/AV1`.
 
 The selectable bitrates are 10000, 12000, 15000, 20000, 25000, 30000, 40000, 50000,

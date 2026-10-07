@@ -382,6 +382,7 @@ public:
     {
         auto nextSunshineCheck = std::chrono::steady_clock::now();
         int announcedAvailability = SunshineUnknown;
+        int announcedCodecModes = 0;
         while (!shutdown.requested()) {
             if (ConsoleShutdownRequested) {
                 shutdown.request();
@@ -394,9 +395,16 @@ public:
             // Announced from here rather than where the change is recorded, because that can
             // be in the middle of answering a TV and this thread holds no session locks.
             const int availability = sunshineAvailability_.load();
+            const int codecModes = sunshineCodecModes_.load();
             if (availability != SunshineUnknown && availability != announcedAvailability) {
                 announcedAvailability = availability;
+                announcedCodecModes = codecModes;
                 announceSunshineAvailability(availability == SunshineAvailable);
+            } else if (availability == SunshineAvailable && codecModes != announcedCodecModes) {
+                // Sunshine restarted between checks and came back with other encoders,
+                // e.g. a hardware encoder that failed its startup probe the first time.
+                announcedCodecModes = codecModes;
+                announceSunshineCodecs();
             }
             shutdown.waitFor(std::chrono::milliseconds(200));
         }
@@ -445,9 +453,10 @@ private:
         try {
             const auto detected = gateway::moonlight::MoonlightSession::detectSunshine(
                 *identity_, configuredMoonlightOptions().host, {});
+            // Stored first so that a change in availability is announced with these codecs.
+            sunshineCodecModes_.store(detected.serverInfo.serverCodecModeSupport);
             recordSunshineAvailability(
                 detected.pairedHost.has_value() && detected.serverInfo.pairStatus == 1);
-            sunshineCodecModes_.store(detected.serverInfo.serverCodecModeSupport);
         } catch (const std::exception&) {
             recordSunshineAvailability(false);
         }
@@ -486,6 +495,24 @@ private:
             }
         } catch (const std::exception& error) {
             log("Sunshine availability not sent: " + std::string(error.what()));
+        }
+    }
+
+    void announceSunshineCodecs()
+    {
+        std::shared_ptr<Session> active;
+        {
+            const std::lock_guard lock(sessionMutex_);
+            active = activeSession_;
+        }
+        log("Sunshine codec support changed");
+        if (!active) {
+            return;
+        }
+        try {
+            sendJson(active, gateway::protocol::makeCapabilities(sunshineEncoders()));
+        } catch (const std::exception& error) {
+            log("Sunshine codecs not sent: " + std::string(error.what()));
         }
     }
 
@@ -1192,8 +1219,8 @@ private:
             status.sunshineDetected = true;
             status.sunshinePaired = detected.pairedHost.has_value()
                 && detected.serverInfo.pairStatus == 1;
-            recordSunshineAvailability(status.sunshinePaired);
             sunshineCodecModes_.store(detected.serverInfo.serverCodecModeSupport);
+            recordSunshineAvailability(status.sunshinePaired);
             if (!detected.serverInfo.hostname.empty()) {
                 status.gatewayName = detected.serverInfo.hostname;
             }
