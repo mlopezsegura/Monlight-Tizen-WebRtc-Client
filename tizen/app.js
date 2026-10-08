@@ -2068,30 +2068,40 @@ function navigateGatewayEditor(direction) {
   if (!gatewayEditorState) {
     return false;
   }
+  // Up and down change the selected segment; left and right walk the segments, then Connect
+  // and Cancel, so a value is never left by pressing down to decrement it.
   const active = document.activeElement;
   const octetIndex = gatewayOctetButtons.indexOf(active);
   if (octetIndex >= 0) {
     gatewayEditorState.selectedOctet = octetIndex;
-    if (direction === "left") {
-      if (octetIndex > 0) { focusGatewayOctet(octetIndex - 1); return true; }
-      return false;
+    if (direction === "up" || direction === "down") {
+      changeGatewayOctet(direction === "up" ? 1 : -1);
+    } else if (direction === "left") {
+      focusGatewayOctet(octetIndex - 1);
+    } else if (octetIndex + 1 < gatewayOctetButtons.length) {
+      focusGatewayOctet(octetIndex + 1);
+    } else {
+      gatewayEditorConnectButton.focus();
     }
-    if (direction === "right") {
-      if (octetIndex + 1 < gatewayOctetButtons.length) { focusGatewayOctet(octetIndex + 1); return true; }
-      return false;
-    }
-    if (direction === "up") { changeGatewayOctet(1); return true; }
-    if (direction === "down") { gatewayEditorCancelButton.focus(); return true; }
+    return true;
   }
-  if (active === gatewayEditorCancelButton || active === gatewayEditorConnectButton) {
-    if (direction === "left" || direction === "right") {
-      (active === gatewayEditorCancelButton ? gatewayEditorConnectButton : gatewayEditorCancelButton).focus();
-      return true;
-    }
-    if (direction === "up") {
+  if (active === gatewayEditorConnectButton) {
+    if (direction === "left") {
+      gatewayEditorCancelButton.focus();
+    } else if (direction === "up") {
       focusGatewayOctet(gatewayEditorState.selectedOctet);
-      return true;
     }
+    return true;
+  }
+  if (active === gatewayEditorCancelButton) {
+    if (direction === "right") {
+      gatewayEditorConnectButton.focus();
+    } else if (direction === "left") {
+      focusGatewayOctet(gatewayOctetButtons.length - 1);
+    } else if (direction === "up") {
+      focusGatewayOctet(gatewayEditorState.selectedOctet);
+    }
+    return true;
   }
   return false;
 }
@@ -2574,7 +2584,11 @@ function activateFocusedControl() {
       connectGatewayFromEditor();
       return true;
     }
-    return gatewayOctetButtons.indexOf(active) >= 0;
+    // OK on a segment moves on, ending on Connect, as the right arrow does.
+    if (gatewayOctetButtons.indexOf(active) >= 0) {
+      return navigateGatewayEditor("right");
+    }
+    return false;
   }
   if (gatewayContextMenuIsOpen()) {
     if (active === gatewayWakeButton) {

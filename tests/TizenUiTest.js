@@ -71,6 +71,9 @@ assert.ok(html.includes('id="add-gateway-card"') === false && html.includes('id=
   "the Gateway list must be rendered from persisted data rather than a hard-coded card");
 assert.ok(html.includes('id="gateway-editor-dialog"') && html.includes('data-octet-index="3"'),
   "manual Gateway setup requires the four-octet IPv4 editor");
+assert.ok(appSource.includes('changeGatewayOctet(direction === "up" ? 1 : -1);')
+  && !appSource.includes('if (direction === "down") { gatewayEditorCancelButton.focus(); return true; }'),
+  "in the IPv4 editor the down arrow decrements the segment instead of leaving it for the buttons");
 assert.ok(uiSource.includes("this.ensureGatewayFocus();"),
   "the first selectable gateway must receive initial focus when it becomes available");
 assert.ok(uiSource.includes("TizenUi.prototype.focusSettingsCategory"),
