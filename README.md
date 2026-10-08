@@ -294,9 +294,8 @@ sure nothing else, such as the retired Moonlight WebRTC Gateway service, uses th
 
 ## 2 — Install the Samsung TV application
 
-Download `MoonlightWebRTC.wgt` from the [Releases page](https://github.com/mlopezsegura/moonlight-webrtc-tizen/releases).
-
-Install it with [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) using its **Custom WGT** installation option. Apps2Samsung handles the Tizen signing and TV installation process; **Tizen Studio is not required**.
+Download `MoonlightWebRTC.wgt` from the [Releases page](https://github.com/mlopezsegura/moonlight-webrtc-tizen/releases)
+and install it with Apps2Samsung, as described in [Installing on the TV](#installing-on-the-tv).
 
 ## 3 — Add your PC and pair
 
@@ -309,6 +308,31 @@ Install it with [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) usi
 6. Enter the PIN, optionally change the device name, and select **Send**.
 
 Your Sunshine application library appears on the TV. Select an application and start streaming.
+
+---
+
+# Installing on the TV
+
+The TV application is installed with **[Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung)**, a
+free tool for Windows, macOS, Linux and Android that side-loads apps onto Samsung Tizen TVs. It finds the
+TV, creates and reuses the Samsung signing certificate, and installs the package, so **Tizen Studio is not
+required**.
+
+1. **Put the TV in Developer Mode**, as Apps2Samsung's
+   [FAQ](https://github.com/Apps2Samsung/Apps2Samsung/wiki/FAQ#-how-to-enable-developer-mode-on-your-tv)
+   explains, using the IP address of the computer or phone that will run Apps2Samsung.
+2. **Install Apps2Samsung** from its [releases](https://github.com/Apps2Samsung/Apps2Samsung/releases), on a
+   computer or Android phone on the same network as the TV.
+3. **Download `MoonlightWebRTC.wgt`** from the latest release on this repository's
+   [Releases page](https://github.com/mlopezsegura/moonlight-webrtc-tizen/releases).
+4. **Open Apps2Samsung** and select your TV. It can find the TV on the network, or you can enter its IP
+   address. The first time, sign in to your Samsung account when asked so that Apps2Samsung can create the
+   certificate.
+5. **Choose a custom `.wgt`**, select the downloaded `MoonlightWebRTC.wgt`, and install it.
+
+Moonlight WebRTC then appears in the TV's app list.
+
+To update, download the newer `MoonlightWebRTC.wgt` from Releases and install it the same way.
 
 ---
 
