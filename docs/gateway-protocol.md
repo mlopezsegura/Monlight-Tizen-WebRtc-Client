@@ -162,6 +162,12 @@ signed-in user can approve the PIN, there is no attempt limit to guess against. 
 answers `pair-client` with the error code `unsupported-pairing`, which tells an older TV app to
 update.
 
+Paired TVs appear in Sunshine's client list under **Troubleshooting**, next to Moonlight clients, and
+can be disabled or unpaired there. Unpairing a TV removes its credentials, so its next `authenticate`
+fails with `authentication-failed` and the TV pairs again. Disabling a TV keeps it paired, but
+`authenticate` fails with code `client-disabled`. In that case the TV keeps its credentials and
+reports that it is disabled, and it works again once the TV is re-enabled.
+
 The WebSocket itself is not encrypted, so the secret is visible to a passive observer on the
 LAN during that one pairing exchange. Authentication stops other devices on the network from
 using or interrupting the Gateway; it does not make the stream confidential.

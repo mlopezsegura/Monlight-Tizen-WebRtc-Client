@@ -796,6 +796,19 @@ function handleAuthenticationRejected() {
   openGatewayPairDialog();
 }
 
+// Sunshine refuses a TV disabled in its client list but keeps it paired, so the credentials stay.
+function handleClientDisabled(message) {
+  const gatewayId = activeGateway ? activeGateway.id : "";
+  const detail = (message.message || "This TV is disabled in Sunshine")
+    + ". Enable it in Sunshine's Web UI under Troubleshooting.";
+  closeActiveGatewayConnection();
+  setGatewayRuntimeState(gatewayId, "Disabled");
+  if (!gatewayValidationFailed(detail)) {
+    showHome();
+    reportError("TV disabled", new Error(detail));
+  }
+}
+
 function handlePaired(message) {
   if (!GatewayAuth.isValidCredentials(message.clientId, message.clientSecret)) {
     handlePairingRejected({ message: "The Gateway sent invalid pairing credentials." });
@@ -1145,7 +1158,11 @@ function setRunningApplication(appId) {
 
 function handleGatewayError(message) {
   if (message.requestType === "authenticate") {
-    handleAuthenticationRejected();
+    if (message.code === "client-disabled") {
+      handleClientDisabled(message);
+    } else {
+      handleAuthenticationRejected();
+    }
     return;
   }
   if (message.requestType === "pair-client" || message.requestType === "request-pairing") {

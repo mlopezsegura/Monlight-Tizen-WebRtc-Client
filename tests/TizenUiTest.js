@@ -294,6 +294,8 @@ assert.ok(appSource.includes('type: "authenticate"') && appSource.includes('type
 assert.ok(appSource.includes('message.pairing === "client-pin"') && appSource.includes('type: "request-pairing"')
   && html.includes('id="gateway-pair-instructions"') && html.includes('id="gateway-pair-hint"'),
   "with Sunshine the TV must show its own PIN for the Web UI, and still enter the standalone Gateway's");
+assert.ok(appSource.includes('message.code === "client-disabled"') && appSource.includes("function handleClientDisabled"),
+  "a TV disabled in Sunshine must keep its credentials instead of pairing again");
 assert.ok(!/addEventListener\("open"[\s\S]{0,400}requestApplications\(\)/.test(appSource),
   "applications must be requested only after the Gateway accepts this TV");
 assert.ok(config.includes("http://tizen.org/privilege/tv.inputdevice") && appSource.includes("registerKeyBatch"),
