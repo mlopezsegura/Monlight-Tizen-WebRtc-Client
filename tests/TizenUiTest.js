@@ -289,17 +289,19 @@ assert.ok(html.indexOf('src="gateway-auth.js"') >= 0
   "the Gateway store validates pairing credentials, so gateway-auth.js must load first");
 assert.ok(appSource.includes("const GATEWAY_PROTOCOL_VERSION = 2;"),
   "the client must speak the protocol version that requires TV authentication");
-assert.ok(appSource.includes('type: "authenticate"') && appSource.includes('type: "pair-client"'),
-  "the client must authenticate with saved credentials and pair when it has none");
-assert.ok(appSource.includes('message.pairing === "client-pin"') && appSource.includes('type: "request-pairing"')
-  && html.includes('id="gateway-pair-instructions"') && html.includes('id="gateway-pair-hint"'),
-  "with Sunshine the TV must show its own PIN for the Web UI, and still enter the standalone Gateway's");
+assert.ok(appSource.includes('type: "authenticate"') && appSource.includes('type: "request-pairing"'),
+  "the client must authenticate with saved credentials and ask to pair when it has none");
+assert.ok(appSource.includes('message.pairing !== "client-pin"') && appSource.includes("function rejectRetiredGateway")
+  && !appSource.includes('type: "pair-client"'),
+  "the TV shows its own PIN for Sunshine's Web UI and reports the retired Gateway instead of pairing with it");
+assert.ok(html.includes('data-pin-index="3" disabled') && !html.includes("gateway-pair-hint"),
+  "the PIN this TV shows is read, not edited");
 assert.ok(appSource.includes('message.code === "client-disabled"') && appSource.includes("function handleClientDisabled"),
   "a TV disabled in Sunshine must keep its credentials instead of pairing again");
 assert.ok(!/addEventListener\("open"[\s\S]{0,400}requestApplications\(\)/.test(appSource),
   "applications must be requested only after the Gateway accepts this TV");
-assert.ok(config.includes("http://tizen.org/privilege/tv.inputdevice") && appSource.includes("registerKeyBatch"),
-  "the remote's number keys must be registered to type a pairing PIN");
+assert.ok(!config.includes("http://tizen.org/privilege/tv.inputdevice") && !appSource.includes("registerKeyBatch"),
+  "no PIN is typed on the TV, so the remote's number keys are left to the TV");
 assert.ok(appSource.includes("learnGatewayMacAddress(gateway.id, message);"),
   "Gateway probes must remember the address needed to wake each saved PC");
 assert.ok(appSource.includes('gatewayRuntimeStates.get(gateway.id) === "Offline" && wakeOnLan.isSupported()'),

@@ -1,77 +1,38 @@
 # Third-party notices
 
-This inventory was audited against the current Windows release staging output
-and `build-vcpkg-release/vcpkg_installed/vcpkg/info`. The listed versions are
-the versions used to build the current beta artifacts, not a promise for later
-releases.
+## Original project
+
+This project is based on [Moonlight WebRTC by tsoas](https://github.com/tsoas/moonlight-webrtc-tizen),
+distributed under GPL-3.0. The Samsung TV application in this repository derives from it. Its Windows
+Gateway, which incorporated `moonlight-common-c`, is no longer part of this repository: the server side is
+now [Sunshine-Web-RTC](https://github.com/mlopezsegura/Sunshine-Web-RTC), a GPL-3.0 fork of Sunshine.
 
 ## GPL-3.0 source availability
 
-Moonlight WebRTC is licensed under GPL-3.0; the full licence text is at
-[LICENSE](LICENSE). It incorporates `third_party/moonlight-common-c`, which is
-also GPL-3.0. Each beta release must publish the corresponding
-`MoonlightWebRTC-Source.tar.gz` alongside the executable artifacts. That source
-archive identifies the exact project and `moonlight-common-c` commits, and
-includes the full checked-out `moonlight-common-c` source tree, this notice,
-and the GPL-3.0 licence text.
+Moonlight WebRTC is licensed under GPL-3.0; the full licence text is at [LICENSE](LICENSE). The
+corresponding source of every release is this public repository at the release's tag.
 
 ## BrightCraft / Moonlight Tizen
 
-Parts of the Tizen-side implementation of Moonlight WebRTC were reused or
-adapted from the open-source
-[BrightCraft Moonlight Tizen](https://github.com/brightcraft/moonlight-tizen)
-project and from implementation ideas developed by that project.
+Parts of the Tizen-side implementation of Moonlight WebRTC were reused or adapted from the open-source
+[BrightCraft Moonlight Tizen](https://github.com/brightcraft/moonlight-tizen) project and from
+implementation ideas developed by that project.
 
-BrightCraft's Moonlight Tizen project is distributed under GPL-3.0.
-Moonlight WebRTC is also distributed under GPL-3.0, and the corresponding
-Moonlight WebRTC source is included with each release source package.
+BrightCraft's Moonlight Tizen project is distributed under GPL-3.0. Moonlight WebRTC is also distributed
+under GPL-3.0.
 
-We are grateful to BrightCraft and the wider Moonlight Tizen community for
-their work on bringing Moonlight game streaming to Samsung televisions and
-for the implementation experience that helped inform this project.
+We are grateful to BrightCraft and the wider Moonlight Tizen community for their work on bringing Moonlight
+game streaming to Samsung televisions and for the implementation experience that helped inform this project.
 
-Any original copyright and licence notices present in reused or adapted source
-files must remain intact.
+Any original copyright and licence notices present in reused or adapted source files must remain intact.
 
-## Windows runtime inventory
+## Samsung Tizen WGT
 
-The current installer stages the following dynamic runtime libraries:
+The WGT contains the project's HTML, JavaScript, CSS, assets and normal package-signature metadata.
 
-| Component | Version | Distributed file(s) | Licence / notice source |
-| --- | --- | --- | --- |
-| curl | 8.21.0 | `libcurl.dll` | [curl licence](https://curl.se/docs/copyright.html) |
-| OpenSSL | 3.6.3 | `libcrypto-3-x64.dll`, `libssl-3-x64.dll` | [Apache-2.0](https://www.openssl.org/source/license.html) |
-| libdatachannel | 0.24.5 | `datachannel.dll` | [MPL-2.0](https://github.com/paullouisageneau/libdatachannel/blob/master/LICENSE) |
-| libjuice | 1.7.2 | `juice.dll` | [MPL-2.0](https://github.com/paullouisageneau/libjuice/blob/master/LICENSE) |
-| libsrtp | 2.8.0 | `srtp2.dll` | [BSD-3-Clause](https://github.com/cisco/libsrtp/blob/master/LICENSE) |
-| pugixml | 1.16 | `pugixml.dll` | [MIT](https://github.com/zeux/pugixml/blob/master/LICENSE.md) |
-| zlib | 1.3.2 | `z.dll` | [zlib licence](https://zlib.net/zlib_license.html) |
-
-The following dependencies are linked into the Gateway rather than copied as
-separate runtime DLLs, and remain subject to their notices:
-
-| Component | Version | Licence / notice source |
-| --- | --- | --- |
-| moonlight-common-c | pinned submodule | GPL-3.0; [included licence](third_party/moonlight-common-c/LICENSE.txt) |
-| ENet (inside moonlight-common-c) | bundled | MIT; [included licence](third_party/moonlight-common-c/enet/LICENSE) |
-| nanors (inside moonlight-common-c) | bundled | MIT; [included licence](third_party/moonlight-common-c/nanors/LICENSE) |
-| nlohmann-json | 3.12.0 | [MIT](https://github.com/nlohmann/json/blob/develop/LICENSE.MIT) |
-| usrsctp | 0.9.5.0 | [BSD-3-Clause](https://github.com/sctplab/usrsctp/blob/master/LICENSE.md) |
-| plog | 1.1.11 | [MIT](https://github.com/SergiusTheBest/plog/blob/master/LICENSE) |
-
-`VC_redist.x64.exe` is also bundled by the Windows installer. It is the Visual
-Studio-supplied Microsoft Visual C++ x64 Redistributable (current staged
-version: 14.51.36247.0) and is redistributed under Microsoft's applicable
-Visual Studio redistribution terms.
-
-The Samsung Tizen WGT contains the project's HTML, JavaScript, CSS, assets,
-and normal package-signature metadata; it does not bundle the above Windows
-runtime DLLs.
-
-It does contain the Wake-on-LAN WebAssembly module (`wasm/wake-on-lan.*`),
-built from `tizen/wasm/wake-on-lan.c` with Samsung's Emscripten fork. The
-module includes that toolchain's generated JavaScript runtime and statically
-linked system libraries:
+It also contains the Wake-on-LAN WebAssembly module (`wasm/wake-on-lan.*`). The module is built from
+`tizen/wasm/wake-on-lan.c` with Samsung's Emscripten fork, and includes that toolchain's generated JavaScript
+runtime and statically linked system libraries:
 
 | Component | Version | Licence / notice source |
 | --- | --- | --- |
@@ -80,6 +41,5 @@ linked system libraries:
 
 ## Release maintenance
 
-Publish `LICENSE`, this notice, and `MoonlightWebRTC-Source.tar.gz` with the
-beta release. Re-audit this list whenever the vcpkg baseline, staged DLLs, or
-submodule revision changes.
+Publish `LICENSE` and this notice with each release. Re-audit this list whenever the Emscripten toolchain
+changes.

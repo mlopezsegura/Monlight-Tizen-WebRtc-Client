@@ -34,7 +34,8 @@ assert.strictEqual(
   "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54",
   "HMAC-SHA256 mishandles keys longer than one block");
 
-// The same vector is asserted by tests/TvClientAuthTest.cpp, so both ends agree.
+// The same vector is asserted by Sunshine-Web-RTC's tests/unit/webrtc/test_webrtc_tv_auth.cpp,
+// so both ends agree.
 const secret = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 const nonce = "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100";
 assert.strictEqual(auth.authenticationProof(secret, nonce),

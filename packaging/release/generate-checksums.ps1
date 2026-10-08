@@ -13,16 +13,8 @@ $DistributionDirectory = [System.IO.Path]::GetFullPath($DistributionDirectory)
 
 $assets = @(
     [pscustomobject]@{
-        Name = 'MoonlightWebRTC-Setup.exe'
-        Path = Join-Path $DistributionDirectory 'windows\MoonlightWebRTC-Setup.exe'
-    },
-    [pscustomobject]@{
         Name = 'MoonlightWebRTC.wgt'
         Path = Join-Path $DistributionDirectory 'tizen\MoonlightWebRTC.wgt'
-    },
-    [pscustomobject]@{
-        Name = 'MoonlightWebRTC-Source.tar.gz'
-        Path = Join-Path $DistributionDirectory 'MoonlightWebRTC-Source.tar.gz'
     }
 )
 

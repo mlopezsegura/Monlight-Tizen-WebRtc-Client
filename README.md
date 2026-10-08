@@ -1,55 +1,100 @@
 # Moonlight WebRTC
 
-### Sunshine game streaming for Samsung Tizen TVs
+### Sunshine game streaming for Samsung Tizen TVs — straight from Sunshine
 
-**Moonlight WebRTC brings low-latency PC game streaming to Samsung TVs with up to 4K 60 FPS, HDR, HEVC, gamepad support, rumble, and a TV-first interface.**
+**Moonlight WebRTC streams games from your PC to a Samsung TV at up to 4K 60 FPS with HDR, HEVC, AV1, gamepad support, rumble and a TV-first interface. The TV talks directly to [Sunshine-Web-RTC](https://github.com/mlopezsegura/Sunshine-Web-RTC), a Sunshine build that serves WebRTC itself, so nothing else runs between the game and the TV.**
 
-It keeps Sunshine and the Moonlight protocol where they work best, then bridges the already encoded stream to the TV through WebRTC — **without decoding and re-encoding the video on the Gateway**.
+> [!NOTE]
+> **This project is based on [Moonlight WebRTC by tsoas](https://github.com/tsoas/moonlight-webrtc-tizen).**
+> The TV application, its interface and the WebRTC design come from that project. This version
+> changes the architecture: the separate Windows Gateway is gone, and its job now happens inside
+> Sunshine. See [What changed](#what-changed-from-the-original) below.
 
 > [!IMPORTANT]
-> **Moonlight WebRTC is currently in beta.**  
-> It is intended for testing on compatible Samsung Tizen TVs and may still contain bugs or device-specific limitations.
+> **Moonlight WebRTC is in beta.** It is intended for testing on compatible Samsung Tizen TVs and may still contain bugs or device-specific limitations.
 
 ![Moonlight WebRTC application library](docs/images/apps.png)
 
-**4K 60 FPS · HDR · HEVC Main10 · H.264 · Opus audio · Gamepad + rumble · No video transcoding**
+**4K 60 FPS · HDR · HEVC Main10 · AV1 · H.264 · Opus audio · Gamepad + rumble · No video transcoding**
 
 ---
 
 ## What is Moonlight WebRTC?
 
-Moonlight WebRTC lets you play games from a Sunshine-powered Windows PC directly on a Samsung Tizen TV.
+Moonlight WebRTC lets you play games from a Sunshine-powered Windows PC directly on a Samsung Tizen TV, with an experience that aims to match Moonlight with Sunshine:
 
-Install the **Moonlight WebRTC Gateway** on your Windows PC, pair it once with Sunshine, install the TV app, and then use your Samsung remote or gamepad to browse your library and start streaming from the couch.
-
-The TV does **not** connect directly to Sunshine.
-
-Instead, Moonlight WebRTC splits the job into two parts:
+- the same applications, artwork and launch, resume and stop behaviour;
+- pairing with a PIN in Sunshine's Web UI;
+- every paired TV listed with your Moonlight clients;
+- Sunshine's encoder, display and controller settings applied to the TV as to any Moonlight client.
 
 ```text
-Gaming PC
-┌─────────────────────────────┐
-│          Sunshine           │
-└──────────────┬──────────────┘
-               │
-               │ Moonlight protocol
-               ▼
-┌─────────────────────────────┐
-│   Moonlight WebRTC Gateway  │
-│       Windows service       │
-└──────────────┬──────────────┘
-               │
-               │ WebRTC over your LAN
-               ▼
-┌─────────────────────────────┐
-│      Samsung Tizen TV       │
-│       Moonlight WebRTC      │
-└─────────────────────────────┘
+Gaming PC                                         Samsung TV
+┌──────────────────────────────────┐             ┌──────────────────────┐
+│ Sunshine-Web-RTC                 │   WebRTC    │ Moonlight WebRTC     │
+│ capture → encode → WebRTC (RTP)  │ ──────────► │ hardware decode      │
+│ GameStream for Moonlight clients │   your LAN  │ gamepad, remote      │
+└──────────────────────────────────┘             └──────────────────────┘
 ```
 
-From Sunshine's point of view, the Gateway is the Moonlight client. From the TV's point of view, the Gateway is a local WebRTC streaming server.
+Sunshine-Web-RTC is a fork of [Sunshine](https://github.com/LizardByte/Sunshine). It keeps everything
+Sunshine does for Moonlight clients and adds a WebRTC server for the TV. Moonlight clients and the TV can
+use the same PC.
 
-That architecture lets Moonlight WebRTC keep the mature Sunshine/Moonlight ecosystem on the PC side while using the real-time media path available on Samsung Tizen TVs.
+---
+
+## What changed from the original
+
+The original Moonlight WebRTC put a **Windows Gateway** between Sunshine and the TV. The Gateway was a
+Moonlight client towards Sunshine and a WebRTC server towards the TV:
+
+```text
+Original
+
+Sunshine ── encode ── GameStream (RTP + FEC + encryption) ── loopback ──┐
+                                                                        ▼
+                              Gateway: receive, decrypt, reassemble each frame,
+                              repacketize into WebRTC RTP
+                                                                        │
+TV ◄──────────────────────────── WebRTC ────────────────────────────────┘
+```
+
+Every frame Sunshine encoded therefore went through a full GameStream round trip on the same PC before the
+TV saw it:
+
+1. It was split into packets with forward error correction and encryption.
+2. It was sent over the loopback network.
+3. The Gateway received, decrypted and reassembled it.
+4. The Gateway packetized it again for WebRTC.
+
+That hop costs time on every frame. It also makes frame delivery uneven: a frame can only be forwarded once
+the whole of it has been received, decrypted and reassembled, so frames left the PC at slightly irregular
+intervals. The TV's WebRTC jitter buffer absorbs that unevenness by holding frames longer, or, when it
+cannot, shows it as micro-stutter.
+
+Sunshine-Web-RTC removes the hop entirely:
+
+```text
+Now
+
+Sunshine-Web-RTC: capture → encode → WebRTC RTP → TV
+```
+
+- **Less latency.** Encoded frames go from Sunshine's encoder straight to the WebRTC packetizer, in the
+  same process. Nothing is encrypted, decrypted, sent over loopback or reassembled on the way.
+- **No micro-stutter from the bridge.** Each frame is sent as soon as the encoder produces it. Its RTP
+  timestamp comes from the moment it was captured, not from when another process finished reassembling it.
+  The TV therefore receives evenly paced frames with accurate timing, which keeps its jitter buffer small
+  and playback smooth.
+- **More of the bitrate for the picture.** There is no GameStream forward error correction to pay for on the
+  PC, so the encoder gets the bitrate the TV asked for, less only audio and RTP overhead. WebRTC on the LAN
+  repairs losses with retransmission and keyframe requests instead.
+- **Faster recovery.** When the TV asks for a keyframe, the request goes directly to Sunshine's encoder.
+- **Nothing extra to install or keep running.** There is no Windows service, tray application or second
+  pairing. The TV pairs with Sunshine itself.
+
+The goal is what Moonlight gives you with Sunshine on a PC or a phone: 4K 60 FPS HDR that feels local. The
+difference is that it now runs on the TV with nothing in between.
 
 ---
 
@@ -69,13 +114,13 @@ From the TV you can:
 - stop the Sunshine session when you actually want to close it;
 - switch to another application.
 
-The session lifecycle is designed to behave like a normal Moonlight client rather than simply killing the host application whenever the TV disconnects.
+The session lifecycle behaves like a normal Moonlight client rather than simply killing the host application whenever the TV disconnects.
 
 ---
 
 ## 📺 Up to 4K 60 FPS
 
-The current beta streams at a fixed **60 FPS** and supports several resolution and codec combinations.
+Streams run at **60 FPS** in several resolution and codec combinations.
 
 | Codec | 720p | 1080p | 1440p | 4K |
 |---|:---:|:---:|:---:|:---:|
@@ -87,7 +132,7 @@ The current beta streams at a fixed **60 FPS** and supports several resolution a
 
 ¹ **AV1 is offered only when the PC's GPU can encode it and the TV can decode it over WebRTC.**
 
-🧪 **1440p is currently considered experimental.**
+🧪 **1440p is experimental.**
 
 Resolution, codec, HDR mode and bitrate are selectable directly from the TV.
 
@@ -97,71 +142,35 @@ Resolution, codec, HDR mode and bitrate are selectable directly from the TV.
 
 ## 🌈 HDR
 
-Moonlight WebRTC supports **HEVC Main10 and AV1 Main 10-bit HDR** streaming without tone mapping or video transcoding in the Gateway.
+Moonlight WebRTC streams **HEVC Main10 and AV1 Main 10-bit HDR** without tone mapping or transcoding. The
+Main10 stream and its Rec.2020 signalling reach the Samsung TV as Sunshine encoded them.
 
-The HDR path preserves the Main10 stream and Rec.2020 signaling through to the Samsung TV.
-
-Validated HDR modes include:
-
-- 1080p60;
-- 1440p60 experimental;
-- 4K60.
+If HDR was requested but the PC's display is not in HDR, the stream stops with an error instead of silently sending SDR.
 
 ---
 
 ## ⚡ No video transcoding
 
-This is one of the most important design goals of Moonlight WebRTC.
-
-Sunshine already produces an encoded game stream. The Gateway does **not** decode that video and create a second encoded stream.
-
-A traditional transcoding bridge would look like this:
+Sunshine encodes the game once, with your GPU's hardware encoder. That bitstream is what the TV decodes:
 
 ```text
-Sunshine
+Sunshine-Web-RTC encodes (H.264 / HEVC / AV1)
    ↓
-encoded video
-   ↓
-Gateway decodes
-   ↓
-Gateway re-encodes
-   ↓
-TV decodes
-```
-
-Moonlight WebRTC instead uses this path:
-
-```text
-Sunshine
-   ↓
-H.264 / HEVC / AV1 encoded video
-   ↓
-Moonlight WebRTC Gateway
-packetize / forward
-   ↓
-WebRTC
+WebRTC RTP over your LAN
    ↓
 Samsung hardware decoder
 ```
 
-Avoiding an additional decode/encode cycle means:
-
-- no extra generation of video compression;
-- no unnecessary quality loss from re-encoding;
-- no additional full transcoding delay;
-- much lower CPU/GPU requirements for the Gateway.
-
-The Gateway is primarily a **protocol and transport bridge**, not a video transcoder.
+There is no decode and re-encode anywhere, so there is no second generation of compression, no quality loss
+from re-encoding and no transcoding delay.
 
 ---
 
 ## 🔊 Synchronized audio and video
 
-Audio is delivered as **Opus stereo at 48 kHz**.
+Audio is delivered as **Opus stereo at 48 kHz** in 5 ms packets.
 
-Instead of maintaining unrelated custom audio and video playback loops on the TV, Moonlight WebRTC feeds both through the WebRTC media pipeline.
-
-WebRTC provides a shared real-time media timeline and handles mechanisms such as:
+Audio and video share WebRTC's real-time media timeline. WebRTC handles:
 
 - media timing;
 - jitter buffering;
@@ -169,7 +178,7 @@ WebRTC provides a shared real-time media timeline and handles mechanisms such as
 - packet-loss feedback;
 - stream timing adjustments.
 
-That design helps maintain tight A/V synchronization during gameplay without adding a second custom synchronization layer on Tizen.
+Both streams are timestamped by Sunshine when they are captured, so the TV can keep them in sync without a second custom synchronization layer.
 
 ---
 
@@ -179,7 +188,7 @@ Xbox-compatible controllers can be used directly with the Samsung TV.
 
 Supported input includes analog sticks, triggers, D-pad, face buttons, shoulder buttons, stick buttons, menu/view controls and **controller rumble**.
 
-Gamepad input travels back to the Gateway through a **WebRTC DataChannel** and is forwarded through the Moonlight input protocol to Sunshine.
+Gamepad input travels to Sunshine over a **WebRTC DataChannel**. Sunshine treats the controller as a Moonlight controller, so its controller emulation settings apply. Holding Start toggles mouse emulation.
 
 ---
 
@@ -189,9 +198,9 @@ The Samsung application is built around a remote-first interface rather than ada
 
 It includes:
 
-- multiple saved Gateways;
-- online/offline Gateway status;
-- Wake-on-LAN for a sleeping or powered-off Gateway PC;
+- multiple saved PCs;
+- online/offline status for each PC;
+- Wake-on-LAN for a sleeping or powered-off PC;
 - remote-friendly IPv4 editing;
 - Sunshine application artwork;
 - resolution selection;
@@ -201,19 +210,20 @@ It includes:
 - stream controls;
 - launch and resume progress feedback.
 
-No keyboard is required for normal use.
+No keyboard is required for normal use. The app still labels each PC a "Gateway"; that name predates the
+architecture change.
 
-![Moonlight WebRTC Gateway selection](docs/images/gateways.png)
+![Moonlight WebRTC PC selection](docs/images/gateways.png)
 
 ---
 
 ## ⏻ Wake-on-LAN
 
-The TV can turn on a Gateway PC that is asleep or shut down.
+The TV can turn on a PC that is asleep or shut down.
 
-Select an offline Gateway and the TV sends a Wake-on-LAN magic packet, waits for the PC to boot and opens its library once the Gateway answers. **Wake PC** is also available from the Gateway menu (the controller's Menu button).
+Select an offline PC and the TV sends a Wake-on-LAN magic packet, waits for the PC to boot and opens its library once Sunshine answers. **Wake PC** is also available from the PC's menu (the controller's Menu button).
 
-The TV learns the PC's network adapter address the first time it connects to that Gateway, so connect once while the PC is on. Wake-on-LAN also has to be enabled on the PC:
+The TV learns the PC's network adapter address the first time it connects, so connect once while the PC is on. Wake-on-LAN also has to be enabled on the PC:
 
 - in the BIOS/UEFI (often called *Wake on LAN*, *Power On By PCI-E* or *Resume by LAN*; waking from a full shutdown may also need *ErP* disabled);
 - in Windows, under the network adapter's **Properties → Power Management** (*Allow this device to wake the computer*, *Only allow a magic packet to wake the computer*) and **Advanced** (*Wake on Magic Packet*).
@@ -222,118 +232,16 @@ Use wired Ethernet on the PC: most Wi-Fi adapters cannot wake a computer. The TV
 
 ---
 
-## 🖥️ Windows Gateway and tray application
+## 🔐 Pairing and TV management like Moonlight
 
-The Gateway runs as a Windows service, so it is available independently of the desktop UI.
+Pairing works the way it does for Moonlight:
 
-A separate tray application provides configuration and status for the interactive Windows session.
+1. The TV shows a four-digit PIN.
+2. You select the TV in Sunshine's Web UI and enter that PIN.
+3. Only someone signed in to Sunshine's Web UI can approve a TV.
 
-From the tray you can:
-
-- configure the Sunshine host;
-- test the Sunshine connection;
-- pair with Sunshine;
-- unpair;
-- pair a TV with the Gateway, or forget every paired TV;
-- inspect Gateway status;
-- inspect network and session information.
-
-The service starts automatically with Windows.
-
-![Moonlight WebRTC Windows tray application](docs/images/tray.png)
-
----
-
-## 🖥️ Your PC display stays untouched
-
-Moonlight WebRTC deliberately does **not** enable Sunshine/Moonlight host game optimizations that change the Windows display configuration.
-
-Starting a stream does not intentionally change your host resolution, refresh rate or HDR configuration.
-
-Your gaming PC remains configured the way you left it.
-
----
-
-# Why WebRTC?
-
-A reasonable question is:
-
-> **Why not just run a normal Moonlight client directly on the Samsung TV?**
-
-Moonlight is already an excellent low-latency game-streaming protocol, and Moonlight WebRTC still uses it.
-
-**WebRTC does not replace Moonlight in this project.**
-
-The challenge is the final part of the path: getting the stream into a Samsung Tizen television efficiently.
-
-Traditional Moonlight clients are built around the native networking, input and hardware-decoding APIs available on their target platforms. Samsung Tizen TVs expose a different application environment, while also providing a WebRTC-oriented real-time media path suitable for interactive streaming.
-
-Moonlight WebRTC therefore uses both technologies where they make the most sense:
-
-```text
-Sunshine                                      Samsung TV
-    │                                             ▲
-    │ Moonlight                                   │ WebRTC
-    │                                             │
-    └────────────► Moonlight WebRTC Gateway ──────┘
-```
-
-The Gateway handles everything that belongs to the Moonlight ecosystem:
-
-- client identity;
-- Sunshine pairing;
-- application discovery;
-- artwork retrieval;
-- launch / resume / stop requests;
-- Moonlight stream negotiation;
-- encoded video and audio reception;
-- controller input forwarding.
-
-The TV uses WebRTC for the final hop over the local network.
-
-## Why this architecture matters
-
-### Low latency without a transcoding stage
-
-WebRTC is **not** being used to encode the game again.
-
-The already encoded Moonlight video is forwarded into the WebRTC transport path. That avoids an additional video encoding stage on the Gateway.
-
-This matters because a decode → re-encode bridge would add avoidable processing delay and another lossy compression stage.
-
-```text
-Sunshine encode
-      ↓
-Moonlight transport
-      ↓
-Gateway forwards encoded media
-      ↓
-WebRTC transport
-      ↓
-Samsung hardware decode
-```
-
-### Tight audio/video synchronization
-
-WebRTC transports audio and video as related real-time media streams.
-
-That gives the Samsung media stack a shared timing model for both streams rather than relying on two independent playback pipelines.
-
-The result is a cleaner architecture for maintaining low-latency A/V synchronization during gameplay.
-
-### Real-time media feedback
-
-WebRTC also provides mechanisms designed for live media transport, including jitter handling, packet-loss feedback, RTP timing, keyframe requests and real-time transport statistics.
-
-When the Samsung side requests a new keyframe, the Gateway can propagate that request back into the Moonlight stream.
-
-### Hardware decoding stays on the TV
-
-The Gateway does not render the game.
-
-The Samsung TV receives the encoded stream and performs final video decoding through its own media pipeline.
-
-That keeps the Gateway lightweight enough to run alongside Sunshine on the gaming PC without becoming a second video-rendering or transcoding workload.
+Once paired, the TV appears in Sunshine's client list next to your Moonlight clients. From there you can
+disable it, which keeps it paired but refuses it until you enable it again, or unpair it.
 
 ---
 
@@ -341,98 +249,36 @@ That keeps the Gateway lightweight enough to run alongside Sunshine on the gamin
 
 You need:
 
-1. **Sunshine** on your Windows gaming PC.
-2. **Moonlight WebRTC Gateway** on Windows.
-3. **Moonlight WebRTC** on your Samsung TV.
+1. **[Sunshine-Web-RTC](https://github.com/mlopezsegura/Sunshine-Web-RTC)** on your Windows gaming PC,
+   in place of Sunshine.
+2. **Moonlight WebRTC** on your Samsung TV.
 
-Download the latest beta from the [GitHub Releases page](https://github.com/tsoas/moonlight-webrtc-tizen/releases).
+## 1 — Install Sunshine-Web-RTC
 
-## 1 — Install the Windows Gateway
+Install Sunshine-Web-RTC and complete Sunshine's usual first-run setup. Its
+[guide](https://github.com/mlopezsegura/Sunshine-Web-RTC/blob/master/docs/moonlight_webrtc_tizen.md) covers
+building and installing it.
 
-Download `MoonlightWebRTC-Setup.exe` and run the installer.
+The TV connects to **TCP port 8000**. Keep Sunshine's `webrtc_port` option at its default of 8000, and make
+sure nothing else, such as the retired Moonlight WebRTC Gateway service, uses that port.
 
-It installs the Moonlight WebRTC Gateway Windows service, the tray application and the required local-subnet Windows Firewall rule.
+## 2 — Install the Samsung TV application
 
-The Gateway service starts automatically with Windows.
+Download `MoonlightWebRTC.wgt` from the [Releases page](https://github.com/mlopezsegura/moonlight-webrtc-tizen/releases).
 
-## 2 — Pair the Gateway with Sunshine
+Install it with [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) using its **Custom WGT** installation option. Apps2Samsung handles the Tizen signing and TV installation process; **Tizen Studio is not required**.
 
-Open the **Moonlight WebRTC** tray application.
+## 3 — Add your PC and pair
 
-Go to **Sunshine**, configure the Sunshine host and select **Test Connection**.
+1. Open Moonlight WebRTC on the TV and select **Add Gateway**.
+2. Enter the LAN IPv4 address of the PC running Sunshine-Web-RTC. The TV and the PC must be on the same
+   local network.
+3. The first time, the TV shows a four-digit PIN.
+4. On the PC, open Sunshine's Web UI and go to **PIN**.
+5. Select the TV in the list of devices waiting to pair (it appears as *Samsung TV* with its address).
+6. Enter the PIN, optionally change the device name, and select **Send**.
 
-The host field takes the address of the machine running Sunshine — a hostname or an IPv4
-address, such as `192.168.1.20`. This is not the name Sunshine displays for itself, which
-is only a label. If Sunshine runs on a non-default port, append it: `192.168.1.20:27786`.
-Use the base HTTP port from Sunshine's own configuration; the Gateway derives the rest.
-
-Then select **Pair** and complete the PIN pairing with Sunshine.
-
-Pairing normally only needs to be performed once.
-
-## 3 — Install the Samsung TV application
-
-Download `MoonlightWebRTC.wgt`.
-
-Install it with [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) using its **Custom WGT** installation option.
-
-Apps2Samsung handles the Tizen signing and TV installation process.
-
-**Tizen Studio is not required for normal beta installation.**
-
-## 4 — Add your Gateway
-
-Open Moonlight WebRTC on the Samsung TV.
-
-Gateway discovery is not available yet, so select **Add Gateway** and enter the LAN IPv4 address of the Windows PC running the Gateway.
-
-The TV and PC must be reachable on the same local network.
-
-The first time, the TV asks for a PIN. On the PC, open Moonlight WebRTC from the system tray, choose **TVs → Pair TV**, and enter the four-digit PIN it shows on the TV within two minutes. Each TV pairs once; the Gateway refuses TVs that have not paired, so other devices on your network cannot use it or interrupt your stream.
-
-Once connected, your Sunshine application library should appear. Select an application and start streaming.
-
----
-
-# Installation details
-
-## Windows
-
-`MoonlightWebRTC-Setup.exe` installs Moonlight WebRTC under:
-
-```text
-C:\Program Files\Moonlight WebRTC
-```
-
-The installer creates the Windows service:
-
-```text
-MoonlightWebRTCGateway
-```
-
-which runs automatically under the Windows `LocalService` account.
-
-It also installs the tray application for the current interactive user.
-
-### Windows Firewall
-
-The installer automatically creates an inbound Windows Firewall rule named `Moonlight WebRTC Gateway`.
-
-The rule:
-
-- applies only to `moonlight_webrtc.exe`;
-- accepts connections only from `LocalSubnet`;
-- applies across Windows firewall profiles.
-
-You should **not disable Windows Firewall** or manually change your Windows network profile to use Moonlight WebRTC.
-
-## Samsung Tizen
-
-The beta release provides `MoonlightWebRTC.wgt`.
-
-Use Apps2Samsung to install the WGT on the TV and follow its instructions for Developer Mode, TV connection, signing and custom WGT installation.
-
-Once installation is complete, Moonlight WebRTC should appear in the Samsung application list.
+Your Sunshine application library appears on the TV. Select an application and start streaming.
 
 ---
 
@@ -442,31 +288,15 @@ Moonlight WebRTC distinguishes between disconnecting from a stream and stopping 
 
 ## Disconnect
 
-Ends the current TV ↔ Gateway streaming connection. The Sunshine application continues running on the PC, so you can reconnect later and resume it.
+Ends the stream to the TV. The application keeps running on the PC, so you can reconnect later and resume it.
 
 ## Stop
 
-Requests Sunshine to terminate the current application session. Use this when you actually want to stop the game on the PC.
+Asks Sunshine to close the running application. Use this when you actually want to stop the game on the PC.
 
 ## Launch another application
 
-When switching to another Sunshine application, Moonlight WebRTC ends the previous Sunshine session before launching the new one.
-
----
-
-# Persistent Gateway data
-
-The Gateway stores its identity and Sunshine pairing information in:
-
-```text
-%PROGRAMDATA%\MoonlightWebRTC
-```
-
-This directory contains sensitive client identity material, including the Gateway certificate/private key, Sunshine pairing state, and the credentials of paired TVs (`tv-clients.json`).
-
-**Do not share or publish this directory.**
-
-The Windows uninstaller intentionally preserves it, so a normal uninstall/reinstall retains the existing Sunshine pairing.
+When switching to another application, Moonlight WebRTC ends the previous one before launching the new one.
 
 ---
 
@@ -477,116 +307,80 @@ Moonlight WebRTC is still under active development.
 Current known limitations include:
 
 - streaming is currently fixed at **60 FPS**;
-- Gateway auto-discovery is not implemented;
-- Gateways must currently be added manually by IPv4 address;
+- PC auto-discovery is not implemented, so PCs are added by IPv4 address;
+- the TV always connects to port 8000;
 - 1440p support is experimental;
-- automatic application updates are not currently provided.
-
-Higher refresh-rate streaming is being investigated separately and is not enabled in this beta.
+- automatic application updates are not provided.
 
 ---
 
 # Troubleshooting
 
-## The TV cannot connect to the Gateway
+## The TV cannot connect to the PC
 
 Check that:
 
-- the **Moonlight WebRTC Gateway** service is running;
-- the TV and PC are on the same LAN;
-- the Gateway IPv4 address entered on the TV is correct;
-- the PC is reachable from the TV network.
-
-The Windows installer creates the required local-subnet firewall rule automatically.
+- Sunshine-Web-RTC is running and its log shows `WebRTC: TV server listening on port 8000`;
+- no other program uses port 8000, such as the retired Moonlight WebRTC Gateway service (stop or uninstall
+  it);
+- the TV and PC are on the same LAN and the IPv4 address entered on the TV is correct.
 
 **Do not disable Windows Firewall as a troubleshooting step.**
 
-## The TV keeps asking for a PIN
+## The TV says the PC runs the retired Gateway
 
-The Gateway no longer recognizes the TV, for example after **Forget all TVs** or a reset of the Gateway data. Pair it again from **TVs → Pair TV** in the tray. A PIN is valid for two minutes and three attempts; start again on the PC if it expires.
+The TV connected to the old Moonlight WebRTC Gateway instead of Sunshine-Web-RTC. Uninstall the Gateway,
+or stop its service, and make sure Sunshine-Web-RTC listens on port 8000.
 
-If the TV reports that the Gateway is out of date, update the Windows Gateway: the TV app and the Gateway must both be recent enough to support TV pairing.
+## The TV does not appear in Sunshine's PIN page
+
+The TV asks to pair only while it shows the PIN. Make sure the PIN is on screen, then refresh the PIN page. A
+PIN that is not entered within five minutes is replaced by a new one. **New PIN** on the TV asks again at
+any time.
+
+## The TV says it is disabled
+
+The TV was disabled in Sunshine's client list under **Troubleshooting**. Enable it there; it does not need
+to pair again.
 
 ## The PC does not wake up
 
 Check that:
 
-- the TV has connected to this Gateway at least once while the PC was on;
+- the TV has connected to this PC at least once while it was on;
 - Wake-on-LAN is enabled in the PC's BIOS/UEFI and network adapter settings (see [Wake-on-LAN](#-wake-on-lan));
 - the PC is connected by Ethernet rather than Wi-Fi.
 
 If the PC wakes from sleep but not from a shutdown, look for a BIOS option allowing Wake-on-LAN from a powered-off state (and disable *ErP*), or try turning off Windows **Fast startup**.
 
-## Sunshine is not paired
-
-Open the Moonlight WebRTC tray application and go to the **Sunshine** page.
-
-Use **Test Connection** first, then perform **Pair** again if required.
-
-## Reinstalling did not reset the pairing
-
-This is intentional. The Gateway identity in `%PROGRAMDATA%\MoonlightWebRTC` is preserved by the uninstaller.
-
----
-
-# Release downloads
-
-Beta releases contain:
-
-```text
-MoonlightWebRTC-Setup.exe
-MoonlightWebRTC.wgt
-MoonlightWebRTC-Source.tar.gz
-SHA256SUMS.txt
-LICENSE
-THIRD_PARTY_NOTICES.md
-```
-
-`SHA256SUMS.txt` can be used to verify the downloaded binaries and source archive.
-
-On Windows:
-
-```powershell
-Get-FileHash .\MoonlightWebRTC-Setup.exe -Algorithm SHA256
-Get-FileHash .\MoonlightWebRTC.wgt -Algorithm SHA256
-Get-FileHash .\MoonlightWebRTC-Source.tar.gz -Algorithm SHA256
-```
-
-Compare the results with the hashes contained in `SHA256SUMS.txt`.
-
 ---
 
 # Building from source
 
-The project uses C++20, CMake, `moonlight-common-c`, `libdatachannel`, OpenSSL, libcurl, pugixml and Samsung Tizen tooling.
+This repository contains the Samsung TV application (`tizen/`) and its tests (`tests/Tizen*.js`, run with
+Node.js). The server side lives in [Sunshine-Web-RTC](https://github.com/mlopezsegura/Sunshine-Web-RTC).
+The protocol between them is described in [docs/protocol.md](docs/protocol.md).
 
-The Windows Gateway and Samsung TV application have separate packaging pipelines.
-
-The TV package also needs [Samsung's Emscripten SDK](https://developer.samsung.com/smarttv/develop/extension-libraries/webassembly/download.html) (1.39.4.7) to build its Wake-on-LAN WebAssembly module. `packaging/tizen/build-package.ps1` looks for it in `%USERPROFILE%\samsung-emscripten\emscripten-release-bundle\emsdk`; pass `-EmsdkRoot` or set `SAMSUNG_EMSDK` to use another location.
-
-For GPL-compliant release source, each release also includes `MoonlightWebRTC-Source.tar.gz`, containing the corresponding Moonlight WebRTC source and the exact `moonlight-common-c` revision used by that release.
+The TV package needs [Samsung's Emscripten SDK](https://developer.samsung.com/smarttv/develop/extension-libraries/webassembly/download.html) (1.39.4.7) to build its Wake-on-LAN WebAssembly module. `packaging/tizen/build-package.ps1` looks for it in `%USERPROFILE%\samsung-emscripten\emscripten-release-bundle\emsdk`; pass `-EmsdkRoot` or set `SAMSUNG_EMSDK` to use another location.
 
 ---
 
 # Acknowledgements
 
-Moonlight WebRTC would not exist without the work of the wider Moonlight, Sunshine and Tizen communities.
+- **[Moonlight WebRTC by tsoas](https://github.com/tsoas/moonlight-webrtc-tizen)**
+  The original project this one is based on: the Samsung TV application, its remote-first interface, the
+  WebRTC streaming design and the Gateway protocol all come from it. This version replaces its Windows
+  Gateway with a WebRTC server built into Sunshine.
 
-Special thanks to:
+- **[BrightCraft / Moonlight Tizen](https://github.com/brightcraft/moonlight-tizen)**
+  An important reference for the TV application. Parts of its Tizen-side code were reused and adapted, and
+  its UI concepts and implementation ideas guided how to build a modern Moonlight experience for Samsung TVs.
 
-- **[BrightCraft / Moonlight Tizen](https://github.com/brightcraft/moonlight-tizen)**  
-  BrightCraft's Moonlight Tizen project was an important reference during the development of Moonlight WebRTC. Parts of its Tizen-side code were reused and adapted, and its UI concepts and implementation ideas provided useful guidance while exploring how to build a modern Moonlight experience for Samsung TVs. Its long-running work on Moonlight for Tizen provided a strong foundation and many valuable lessons for this project.
+- **[Sunshine](https://github.com/LizardByte/Sunshine)** and the **[Moonlight Game Streaming Project](https://github.com/moonlight-stream)**
+  For the open-source game-streaming host and protocol that Sunshine-Web-RTC builds on.
 
-- **[Moonlight Game Streaming Project](https://github.com/moonlight-stream)**  
-  For the Moonlight protocol implementation and `moonlight-common-c`, which form the basis of the Gateway's communication with Sunshine.
-
-- **[Sunshine](https://github.com/LizardByte/Sunshine)**  
-  For providing the open-source GameStream host that Moonlight WebRTC connects to.
-
-- **Samsung Tizen / Samsung Developers**  
+- **Samsung Tizen / Samsung Developers**
   For the Tizen platform, WebRTC APIs and developer tooling that make the Samsung TV client possible.
-
-Moonlight WebRTC takes a different architectural approach from traditional Moonlight Tizen clients — using a Windows Moonlight Gateway and WebRTC for the final hop to the television — but it builds on a significant amount of prior open-source work from these projects.
 
 ---
 
