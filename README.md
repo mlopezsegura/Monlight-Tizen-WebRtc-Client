@@ -96,6 +96,36 @@ Sunshine-Web-RTC: capture → encode → WebRTC RTP → TV
 The goal is what Moonlight gives you with Sunshine on a PC or a phone: 4K 60 FPS HDR that feels local. The
 difference is that it now runs on the TV with nothing in between.
 
+## The server: Sunshine-Web-RTC and its patches
+
+The server side is **[Sunshine-Web-RTC](https://github.com/mlopezsegura/Sunshine-Web-RTC)**, a fork of
+[LizardByte/Sunshine](https://github.com/LizardByte/Sunshine). It is kept as a small set of patches on top of
+upstream Sunshine, so it can follow new Sunshine releases.
+
+| Patch | What it changes in Sunshine |
+| --- | --- |
+| `0001-core-per-session-packet-queues` | Lets a session receive its own encoded video and audio packets, so frames go from the encoder to WebRTC without passing through the GameStream sender. Moonlight sessions are unaffected. |
+| `0002-core-webrtc-server-integration` | Starts the WebRTC server with Sunshine, adds the `webrtc_enabled` and `webrtc_port` options, and lists, pairs and manages TVs through Sunshine's existing PIN and client endpoints. |
+| `0003-build-libdatachannel` | Builds [libdatachannel](https://github.com/paullouisageneau/libdatachannel) for WebRTC, SRTP and the RTP packetizers. |
+| `0004-webrtc-module` | The TV server itself (`src/webrtc/`): this protocol, TV pairing, sessions, the media pump and the gamepad input bridge. |
+| `0005-web-ui-tv-pairing-and-options` | TVs in the Web UI's PIN form, and the two options on the Network tab. |
+| `0006-tests` | Unit tests and a headless end-to-end test that pairs, streams and measures like a TV. |
+| `0007-docs` | The user guide and option documentation. |
+
+- **[PATCHES.md](https://github.com/mlopezsegura/Sunshine-Web-RTC/blob/master/PATCHES.md)** explains every
+  change file by file, the stream parameters, what has been verified and how to rebase onto a newer Sunshine.
+- **[patches/](https://github.com/mlopezsegura/Sunshine-Web-RTC/tree/master/patches)** holds the patches.
+  Applied to the upstream Sunshine commit named in PATCHES.md, they reproduce the fork exactly:
+
+  ```sh
+  git clone https://github.com/LizardByte/Sunshine.git && cd Sunshine
+  git checkout 0594f62d   # the upstream base named in PATCHES.md
+  git apply /path/to/Sunshine-Web-RTC/patches/*.patch
+  ```
+
+- **[docs/moonlight_webrtc_tizen.md](https://github.com/mlopezsegura/Sunshine-Web-RTC/blob/master/docs/moonlight_webrtc_tizen.md)**
+  covers building, installing and configuring it.
+
 ---
 
 # Features
