@@ -1,4 +1,4 @@
-# Moonlight WebRTC
+# Monlight Tizen WebRtc client
 
 ### Sunshine game streaming for Samsung Tizen TVs — straight from Sunshine
 
