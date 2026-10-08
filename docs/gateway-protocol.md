@@ -132,6 +132,36 @@ followed by the normal startup messages. Failures return an `error` with `reques
 `pair-client` and code `pairing-not-open`, `incorrect-pin`, `too-many-attempts`, or
 `pairing-failed`. The Gateway keeps at most 32 paired TVs, dropping the oldest.
 
+### Pairing with Sunshine's built-in server
+
+[Sunshine-Web-RTC](https://github.com/mlopezsegura/Sunshine-Web-RTC) serves this protocol from
+inside Sunshine and pairs TVs the way Moonlight pairs: the TV shows the PIN and the user enters
+it in Sunshine's Web UI. It says so in its greeting with `"pairing":"client-pin"`; a server
+without the field (this Gateway) shows the PIN itself and expects `pair-client`.
+
+An unpaired TV picks a random four-digit PIN, shows it, and sends:
+
+```json
+{"version":2,"type":"request-pairing","pin":"0421","clientName":"Samsung TV"}
+```
+
+Sunshine lists the TV under **PIN** beside Moonlight clients waiting to pair, by name and address
+and under an unguessable request ID, and keeps the request for five minutes. When the user
+selects the TV and enters the PIN, Sunshine replies with `paired` as above and the name typed
+in the Web UI becomes the TV's name. A wrong PIN ends the request. Otherwise the request fails
+with an `error` whose `requestType` is `request-pairing` and whose code is one of:
+
+- `incorrect-pin`;
+- `pairing-cancelled`, when the request is declined in the Web UI;
+- `pairing-expired`;
+- `pairing-failed`.
+
+After any of these the TV can send a new request. The TV app does so at once with a new PIN,
+except after a cancellation, which waits until the user chooses **New PIN**. Because only a
+signed-in user can approve the PIN, there is no attempt limit to guess against. Sunshine
+answers `pair-client` with the error code `unsupported-pairing`, which tells an older TV app to
+update.
+
 The WebSocket itself is not encrypted, so the secret is visible to a passive observer on the
 LAN during that one pairing exchange. Authentication stops other devices on the network from
 using or interrupting the Gateway; it does not make the stream confidential.

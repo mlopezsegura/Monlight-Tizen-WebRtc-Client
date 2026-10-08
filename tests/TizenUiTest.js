@@ -291,6 +291,9 @@ assert.ok(appSource.includes("const GATEWAY_PROTOCOL_VERSION = 2;"),
   "the client must speak the protocol version that requires TV authentication");
 assert.ok(appSource.includes('type: "authenticate"') && appSource.includes('type: "pair-client"'),
   "the client must authenticate with saved credentials and pair when it has none");
+assert.ok(appSource.includes('message.pairing === "client-pin"') && appSource.includes('type: "request-pairing"')
+  && html.includes('id="gateway-pair-instructions"') && html.includes('id="gateway-pair-hint"'),
+  "with Sunshine the TV must show its own PIN for the Web UI, and still enter the standalone Gateway's");
 assert.ok(!/addEventListener\("open"[\s\S]{0,400}requestApplications\(\)/.test(appSource),
   "applications must be requested only after the Gateway accepts this TV");
 assert.ok(config.includes("http://tizen.org/privilege/tv.inputdevice") && appSource.includes("registerKeyBatch"),

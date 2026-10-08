@@ -64,6 +64,8 @@ const gatewayEditorConnectButton = document.getElementById("gateway-editor-conne
 const gatewayPairDialog = document.getElementById("gateway-pair-dialog");
 const gatewayPairDigitButtons = Array.prototype.slice.call(document.querySelectorAll("[data-pin-index]"));
 const gatewayPairError = document.getElementById("gateway-pair-error");
+const gatewayPairInstructions = document.getElementById("gateway-pair-instructions");
+const gatewayPairHint = document.getElementById("gateway-pair-hint");
 const gatewayPairCancelButton = document.getElementById("gateway-pair-cancel");
 const gatewayPairConfirmButton = document.getElementById("gateway-pair-confirm");
 const gatewayContextMenu = document.getElementById("gateway-context-menu");
@@ -208,6 +210,9 @@ let pendingGatewayValidation = null;
 let gatewayValidationTimer = null;
 let gatewayEditorState = null;
 let gatewayPairState = null;
+// Sunshine pairs like Moonlight: this TV shows a PIN that the user enters in Sunshine's Web UI.
+// The standalone Gateway shows the PIN in its tray instead, for this TV to enter.
+let gatewayShowsTvPin = false;
 // Set once the Gateway accepts this TV on the current connection.
 let gatewayAuthorized = false;
 let gatewayContextGatewayId = null;
@@ -759,6 +764,7 @@ function storeActiveGatewayCredentials(clientId, clientSecret) {
 function handleAuthRequired(message) {
   // The Gateway answered, so the address is right even if pairing still needs the user.
   clearGatewayValidationTimeout();
+  gatewayShowsTvPin = message.pairing === "client-pin";
   if (activeGateway) {
     finishGatewayWake(activeGateway.id);
     const macAddress = WakeOnLan.normalizeMacAddress(message.macAddress);
@@ -803,6 +809,18 @@ function handlePaired(message) {
 
 function handlePairingRejected(message) {
   if (!gatewayPairState) {
+    return;
+  }
+  if (gatewayPairState.showsPin) {
+    // A cancelled request waits for the user; a wrong or expired PIN is replaced at once.
+    if (message.code === "pairing-cancelled") {
+      setGatewayPairError(message.message || "Pairing was cancelled on the PC.");
+      gatewayPairConfirmButton.focus();
+    } else if (message.code === "incorrect-pin") {
+      requestGatewayPairing("The PIN entered on the PC did not match. Enter this new PIN instead.");
+    } else {
+      requestGatewayPairing(message.code === "pairing-expired" ? "" : message.message || "Pairing failed.");
+    }
     return;
   }
   gatewayPairState.busy = false;
@@ -1130,7 +1148,7 @@ function handleGatewayError(message) {
     handleAuthenticationRejected();
     return;
   }
-  if (message.requestType === "pair-client") {
+  if (message.requestType === "pair-client" || message.requestType === "request-pairing") {
     handlePairingRejected(message);
     return;
   }
@@ -1860,10 +1878,18 @@ function openGatewayPairDialog() {
   if (gatewayPairDialogIsOpen()) {
     return;
   }
-  gatewayPairState = { digits: [0, 0, 0, 0], selected: 0, busy: false };
+  const showsPin = gatewayShowsTvPin;
+  gatewayPairState = { digits: [0, 0, 0, 0], selected: 0, busy: false, showsPin: showsPin };
   setGatewayPairError("");
+  gatewayPairInstructions.textContent = showsPin
+    ? "On the PC, open Sunshine's Web UI › PIN, select this TV and enter this PIN."
+    : "On the PC, open Moonlight WebRTC from the system tray, choose TVs › Pair TV, and enter the PIN it shows.";
+  gatewayPairHint.hidden = showsPin;
+  gatewayPairDigitButtons.forEach(function (button) {
+    button.disabled = showsPin;
+  });
   gatewayPairConfirmButton.disabled = false;
-  gatewayPairConfirmButton.textContent = "Pair";
+  gatewayPairConfirmButton.textContent = showsPin ? "New PIN" : "Pair";
   updateGatewayPairDialog();
   gatewayStateElement.textContent = "Pairing required";
   if (activeGateway) {
@@ -1871,7 +1897,43 @@ function openGatewayPairDialog() {
   }
   setHomeMessage("Pair this TV with " + gatewayDisplayName() + " to continue.", false);
   gatewayPairDialog.hidden = false;
-  gatewayPairDigitButtons[0].focus();
+  if (showsPin) {
+    requestGatewayPairing("");
+    gatewayPairCancelButton.focus();
+  } else {
+    gatewayPairDigitButtons[0].focus();
+  }
+}
+
+function randomPinDigit() {
+  if (!window.crypto || typeof window.crypto.getRandomValues !== "function") {
+    return Math.floor(Math.random() * 10);
+  }
+  // Rejecting bytes from 250 up keeps every digit equally likely.
+  const byte = new Uint8Array(1);
+  do {
+    window.crypto.getRandomValues(byte);
+  } while (byte[0] >= 250);
+  return byte[0] % 10;
+}
+
+function randomPinDigits() {
+  return [randomPinDigit(), randomPinDigit(), randomPinDigit(), randomPinDigit()];
+}
+
+// Shows a fresh PIN and asks Sunshine to list this TV until the PIN is entered in its Web UI.
+function requestGatewayPairing(errorMessageText) {
+  if (!gatewayPairState) {
+    return;
+  }
+  gatewayPairState.digits = randomPinDigits();
+  updateGatewayPairDialog();
+  setGatewayPairError(errorMessageText);
+  try {
+    sendGatewayMessage({ type: "request-pairing", pin: gatewayPairState.digits.join(""), clientName: "Samsung TV" });
+  } catch (error) {
+    setGatewayPairError("The connection to the Gateway was lost.");
+  }
 }
 
 function closeGatewayPairDialog() {
@@ -1905,6 +1967,10 @@ function submitGatewayPairing() {
   if (!gatewayPairState || gatewayPairState.busy) {
     return;
   }
+  if (gatewayPairState.showsPin) {
+    requestGatewayPairing("");
+    return;
+  }
   gatewayPairState.busy = true;
   setGatewayPairError("");
   gatewayPairConfirmButton.disabled = true;
@@ -1931,7 +1997,7 @@ function focusGatewayPairDigit(index) {
 
 // Typing a digit fills the selected box and moves on, ending on Pair.
 function enterGatewayPairDigit(value) {
-  if (!gatewayPairState || gatewayPairState.busy) {
+  if (!gatewayPairState || gatewayPairState.busy || gatewayPairState.showsPin) {
     return;
   }
   const index = selectedGatewayPairDigitIndex();
@@ -1949,6 +2015,13 @@ function navigateGatewayPairDialog(direction) {
     return false;
   }
   const active = document.activeElement;
+  // A PIN this TV shows is read, not edited: only Cancel and New PIN take focus.
+  if (gatewayPairState.showsPin) {
+    if (direction === "left" || direction === "right") {
+      (active === gatewayPairCancelButton ? gatewayPairConfirmButton : gatewayPairCancelButton).focus();
+    }
+    return true;
+  }
   const digitIndex = gatewayPairDigitButtons.indexOf(active);
   if (digitIndex >= 0) {
     gatewayPairState.selected = digitIndex;
